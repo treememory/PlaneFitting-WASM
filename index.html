@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Calculator Test</title>
+    <script src="build/PlaneFitting.js"></script>
+</head>
+
+<body>
+    <div id="textContainer"></div>
+    <script>
+        Module.onRuntimeInitialized = () => {
+            const PlaneFitting = Module['_PlaneFitting']; // 假设add是您的导出函数名
+
+            const a = -1 / 3.0, b = -2 / 3.0, d = 3.0;
+            const w_sigma = 0.1;
+
+            let points = [];
+            let center = new Float32Array(6);
+
+            // JavaScript中没有内置的正态分布生成器，但我们可以使用Box-Muller转换
+            function normalDistribution() {
+                let u = 0, v = 0;
+                while (u === 0) u = Math.random(); // 避免0值
+                while (v === 0) v = Math.random();
+                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            function showInfo(info){
+                const container = document.getElementById('textContainer');
+                const newParagraph = document.createElement('p');
+                newParagraph.textContent = info;
+                container.appendChild(newParagraph);
+            }
+
+            for (let i = 0; i < 100; i++) {
+                for (let j = 0; j < 100; j++) {
+                    let x = i;
+                    let y = j;
+                    let z = a * x + b * y + d + normalDistribution() * w_sigma;
+                    points.push(x);
+                    points.push(y);
+                    points.push(z);
+                }
+            }
+
+            let numBytes = points.length * Float32Array.BYTES_PER_ELEMENT;
+            let dataPtr = Module._malloc(numBytes);
+            let dataHeap = new Float32Array(Module.HEAPF32.buffer, dataPtr, points.length);
+            dataHeap.set(new Float32Array(points));
+
+            let planeInfoPtr = Module._malloc(6* Float32Array.BYTES_PER_ELEMENT);
+            let ret = PlaneFitting(dataPtr, points.length, 0.1, 100, planeInfoPtr);
+            if(!ret){
+                console.error("PlaneFitting fail");
+                showInfo("PlaneFitting fail");
+            }
+
+            let modifiedData = new Float32Array(Module.HEAPF32.buffer, planeInfoPtr, 6);
+            let planeParams = Array.from(modifiedData);
+            showInfo(planeParams);
+
+            
+
+            Module._free(dataPtr);
+            Module._free(planeInfoPtr);
+
+        };
+    </script>
+</body>
+
+</html>
